@@ -3,7 +3,6 @@ import json, random, re, time
 import campaign as g, content, storage, achievement_model, passives
 
 run=None
-tag_session=None
 
 def partial(result=None, persist=False, **patch):
  return json.dumps(dict(partial=True,persist=persist,result=result,**patch),ensure_ascii=False)
@@ -14,7 +13,7 @@ def state():
  return dict(registeredCards=storage.registered_cards(),history=storage.run_history(),run=run,slots=storage.run_slots(),activeSlot=storage.active_slot(),profile=storage.profile(),settings=storage.settings(),achievements=achievement_model.entries())
 
 def dispatch(raw):
- global run,tag_session
+ global run
  req=json.loads(raw);action=req['action'];value=req.get('value');result=None
  if action=='choose-monster-type':
   from feedback_update import choose_type
@@ -29,43 +28,10 @@ def dispatch(raw):
   import progress_sync
   result=progress_sync.dispatch(action[12:],value)
   return json.dumps(dict(**state(),result=result,persist=action!='device-sync-read'),ensure_ascii=False)
- if action.startswith('collector-'):
-  import collector
-  result=collector.dispatch(action[10:],value)
-  if action=='collector-import' and run and int(run.get('_save_slot',storage.active_slot()))==int(value['source']):run=None
-  return json.dumps(dict(**state(),result=result),ensure_ascii=False)
  if action=='reward-progress':
   from duel_rewards import progress
   return json.dumps({'result':progress(value['run'],value['events'],g.BY_ID,value.get('victory',False))})
- if action.startswith('tag-'):
-  from tag_campaign import TagCampaign
-  def checkpoint():
-   storage.write(storage.ROOT/'tag-host.json',tag_session.checkpoint())
-  if action=='tag-auto-preview':
-   from copy import deepcopy
-   preview=deepcopy(value);g.auto_deck(preview);result=preview['selected']
-  elif action=='tag-profile':storage.write(storage.ROOT/'profile.json',value)
-  elif action=='tag-create':
-   tag_session=TagCampaign(value['characters'],value['profiles'],value.get('level',0),lobby=value.get('lobby',False));tag_session.room_code=value['code'];checkpoint();result=tag_session.view(0)
-  elif action=='tag-restore':
-   data=storage.read(storage.ROOT/'tag-host.json')
-   code=value['code'] if isinstance(value,dict) else value
-   if not data or data.get('room_code')!=code:
-    if not (isinstance(value,dict) and value.get('optional')):raise ValueError('This host has no saved run for that room.')
-   else:
-    tag_session=TagCampaign.restore(data);result=tag_session.view(0)
-  elif tag_session is None:raise ValueError('No tag run is active.')
-  elif action=='tag-command':result=tag_session.command(value['seat'],value['request']);checkpoint()
-  elif action=='tag-view':result=tag_session.view(int(value))
-  elif action=='tag-receipt':result=tag_session.receipt(value['seat'],value['id'])
-  elif action=='tag-pause':tag_session.paused=bool(value);checkpoint()
-  elif action=='tag-journal':
-   tag_session.journal(value)
-   if value.get('checkpoint',True):checkpoint()
-   return partial(persist=value.get('checkpoint',True))
-  elif action=='tag-finish':tag_session.finish(value['winner'],value['lp'],value['events'],value.get('reason',0));checkpoint()
-  else:raise ValueError('Unknown tag operation.')
- elif action=='import-profile':result=storage.merge_desktop_profile(value,[g.unlock_rule(i)[0] for i in content.PLAYABLE_IDS[2:]])
+ if action=='import-profile':result=storage.merge_desktop_profile(value,[g.unlock_rule(i)[0] for i in content.PLAYABLE_IDS[2:]])
  elif action=='unlock-cpu-viewer':
   profile=storage.profile();profile['cpu_viewer_unlocked']=True;storage.write(storage.ROOT/'profile.json',profile)
  elif action=='remember-level':
@@ -76,8 +42,7 @@ def dispatch(raw):
   profile.setdefault('character_last_levels',{})[str(character)]=level
   storage.write(storage.ROOT/'profile.json',profile)
  elif action=='init':
-  import collector
-  collector.load();run=g.load_run()
+  run=g.load_run()
  elif action=='select-slot':
   slot=int(value);candidate=g.load_run(slot)
   if not candidate:raise ValueError('This slot has no valid saved run.')
@@ -195,8 +160,8 @@ def dispatch(raw):
    p=storage.profile();p.update(unlock_all=True,unlocked=content.PLAYABLE_IDS,relicless_unlocked=True,testing_all_clears=True,character_levels={str(i):6 for i in content.PLAYABLE_IDS});storage.write(storage.ROOT/'profile.json',p)
   else:raise ValueError('Unknown code')
  else:raise ValueError('Unknown mobile action')
- if action in {'active-curses','peek-deck','tag-view','tag-receipt','tag-auto-preview'}:return partial(result)
- if run and action not in {'import-profile','init','select-slot','new','settings','notices','remember-level','unlock-cpu-viewer','cheat'} and not action.startswith('tag-'):g.save(run)
+ if action in {'active-curses','peek-deck'}:return partial(result)
+ if run and action not in {'import-profile','init','select-slot','new','settings','notices','remember-level','unlock-cpu-viewer','cheat'}:g.save(run)
  if action in {'toggle','auto','deselect-all'}:return partial(persist=True,runPatch={'selected':run['selected'],'last_played_at':run.get('last_played_at')})
  if action=='settings':return partial(persist=True,settings=storage.settings())
  return json.dumps(dict(**state(),result=result),ensure_ascii=False)

@@ -4,7 +4,6 @@ from unittest.mock import patch
 from collections import Counter
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root))
 import content,campaign as game,storage,shop_rewards,deck_files
-from tag_campaign import TagCampaign
 seen={1:set(),2:set(),3:set()};count=0
 with patch.object(storage,'ROOT',root/'temp'/('tier-opponent-test-'+uuid.uuid4().hex)):
  for loop in (0,1):
@@ -45,17 +44,4 @@ with patch.object(storage,'ROOT',root/'temp'/('tier-opponent-test-'+uuid.uuid4()
  for i,v in content.TUTORIAL_OPPONENTS.items():
   deck=deck_files.read('tutorial-'+str(v+1),{})
   assert len(deck['main'])==40 and not deck['extra']
- # Both tutorial players must be excluded and still leave exactly five choices.
- tutorial=list(content.TUTORIAL_OPPONENTS)
- for j in range(7):
-  chars=[tutorial[j],tutorial[(j+1)%7]]
-  profile=storage.profile();profile['unlocked']=content.PLAYABLE_IDS[:]
-  room=TagCampaign(chars,[profile,profile],seed=j,lobby=True)
-  for rd in range(9):
-   room.shared['round']=rd;room.sync();room.routes()
-   for run in room.players:
-    assert len(set(run['routes']))==(1 if (rd+1)%3==0 else 5) and not set(chars)&set(run['routes'])
-    assert all(i in content.eligible_opponents(rd) for i in run['routes'])
-   chosen=[room.players[0]['routes'][0],next(i for i in room.players[1]['routes'] if i!=room.players[0]['routes'][0])]
-   for run in room.players:run.setdefault('defeated_opponents',[]).extend(chosen)
-print('PASS',count,'single-player route generations and 63 tag rounds; five choices, seven tutorials, tier variants, rewards, Copycat')
+print('PASS',count,'single-player route generations; five choices, seven tutorials, tier variants, rewards, Copycat')

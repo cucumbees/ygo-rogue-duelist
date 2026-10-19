@@ -15,8 +15,6 @@ def copy(source,destination):
  if not destination.exists() or source.stat().st_mtime>destination.stat().st_mtime:shutil.copy2(source,destination)
 
 def sync():
- from generate_collector_catalog import generate as generate_collector
- generate_collector()
  from generate_art_crops import generate
  generate()
  WEB.mkdir(exist_ok=True)
@@ -38,7 +36,7 @@ def sync():
    scripts[f'c{card}.lua']=(ROOT/f'runtime/script/official/c{card}.lua').read_text(encoding='utf8')
   if 'Duel.LoadScript("rogue-rng.lua")' not in scripts['utility.lua']:scripts['utility.lua']+='\nDuel.LoadScript("rogue-rng.lua")\n'
   scripts_path.write_text(json.dumps(scripts,ensure_ascii=False),encoding='utf8')
- shared=['feedback_update.py','campaign_catalog.py','character_variants.py','variant_relics.py','archetype_relics.py','pack_odds.py','fallen_collectors.py','collector.py','approved_relics.py','approved_relic_effects.py','cursed_relics.py','artifact_effects.py','artifact_text.py','artifact_expansion.py','tag_campaign.py','secret_challenge.py','character_progression.py','challenge_levels.py','loss_reason.py','campaign.py','campaign_expansion.py','content.py','storage.py','shop_rewards.py','unlocks.py','passives.py','duel_rewards.py','achievement_model.py','encounters.py','endless.py','deck_files.py']
+ shared=['feedback_update.py','campaign_catalog.py','character_variants.py','variant_relics.py','archetype_relics.py','pack_odds.py','fallen_collectors.py','approved_relics.py','approved_relic_effects.py','cursed_relics.py','artifact_effects.py','artifact_text.py','artifact_expansion.py','secret_challenge.py','character_progression.py','challenge_levels.py','loss_reason.py','campaign.py','campaign_expansion.py','content.py','storage.py','shop_rewards.py','unlocks.py','passives.py','duel_rewards.py','achievement_model.py','encounters.py','endless.py','deck_files.py']
  shared.extend(['reward_slots.py','boss_selection.py','progress_sync.py','golden_cards.py','card_rarity.py','custom_cards.py'])
  files={name:(ROOT/name).read_text(encoding='utf8') for name in shared}
  files['mobile_backend.py']=(A/'mobile_backend.py').read_text(encoding='utf8')
@@ -51,7 +49,7 @@ def sync():
    cid=token['id'];row=db.execute('SELECT name,desc,type,level,atk,def,race,attribute FROM texts JOIN datas USING(id) WHERE id=?',(cid,)).fetchone()
    if row:token_cards.append(dict(id=cid,name=row[0],desc=row[1],type='Token',level=row[3]&255,atk=row[4],defense=row[5],race='Token',attribute='',data=dict(type=row[2]),strings=[]))
  custom_relic_art=json.loads((ROOT/'data/relic-custom-art.json').read_text(encoding='utf8'))
- meta=dict(tutorial=json.loads((ROOT/'data/tutorial.json').read_text(encoding='utf8')),characters=content.CHARACTERS,playable=content.PLAYABLE_IDS,packs=content.PACKS,artifacts=content.ARTIFACTS,retiredArtifacts=sorted(content.RETIRED_ARTIFACTS),artifactInfo={key:dict(value,art=custom_relic_art.get(key) or next((c['id'] for c in game.CARDS if c['name'].casefold()==str(value['art']).casefold()),game.BY_NAME['Pot of Greed']['id'])) for key,value in content.ART_INFO.items()},curses=content.CURSES,runLength=content.RUN_LENGTH,cards=game.CARDS,tokenCards=token_cards)
+ meta=dict(tutorial=json.loads((ROOT/'data/tutorial.json').read_text(encoding='utf8')),characters=content.CHARACTERS,playable=content.PLAYABLE_IDS,packs=content.PACKS,artifacts=content.ARTIFACTS,retiredArtifacts=sorted(content.RETIRED_ARTIFACTS),artifactInfo={key:dict(value,art=custom_relic_art.get(key) or next((c['id'] for c in game.CARDS if c['name'].casefold()==str(value['art']).casefold()),game.BY_NAME['Pot of Greed']['id'])) for key,value in content.ART_INFO.items()},curses=content.CURSES,runLength=content.RUN_LENGTH,cards=game.CARDS,tokenCards=token_cards,modernCards=[{k:v for k,v in c.items() if k!='sets'} for c in getattr(game,'MODERN_CARDS',[])])
  from duel_rewards import RULES, VICTORY_ONLY
  meta['battleBonusLabels']=[label for _,_,label,_ in RULES]
  meta['battleCoinRules']=[dict(label=label,coins=coins,victoryOnly=metric in VICTORY_ONLY) for metric,_,label,coins in RULES]

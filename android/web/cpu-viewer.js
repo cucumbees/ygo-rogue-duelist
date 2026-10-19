@@ -29,7 +29,7 @@ export class CPUViewer {
   this.root.innerHTML='<section class="loading"><img class="loading-wizard" src="assets/time-wizard.png" alt="Time Wizard"><h2>Preparing CPU duel…</h2><progress></progress></section>';
   const resources=await loadDuelResources();
   if(generation!==this.generation)return;
-  const created=await new MobileDuel([...this.content.cards,...(this.content.tokenCards||[])]).init(resources);
+  const created=await new MobileDuel(this.content.engineCards||[...this.content.cards,...(this.content.tokenCards||[])]).init(resources);
   if(generation!==this.generation){created.destroy();return}this.engine=created;
   const decks=this.characters.map((id,p)=>this.content.cpuDecks[id][this.tiers[p]]);
   // Spectator matches deliberately receive no campaign passive script or modifiers.

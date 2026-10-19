@@ -6,7 +6,8 @@ export function cardFacts(c){
  const color={spell:'Green',trap:'Purple',fusion:'Violet',ritual:'Blue',normal:'Yellow',effect:'Orange'}[kind];
  const row=(label,value,pixel)=>`<div>${pixel?icon(pixel):''}<span>${label?`<small>${label}</small>`:''}<b>${esc(value)}</b></span></div>`;
  let rows=row('Card type',c.type,'type-'+kind);
- if(monster){const race=Number(c.data.race||0),index=race>0?Math.log2(race)+1:0;rows+=row('Attribute',c.attribute,'attribute-'+String(c.attribute).toLowerCase())+row('Level',c.level).replace('<div>', '<div><img class="genre-icon" src="assets/icons/level-star.png" alt="">')+row('Monster Type',c.race).replace('<div>', '<div>'+typeIcon(c))+row('ATK',c.atk<0?'?':c.atk)+row('DEF',c.defense<0?'?':c.defense);}
+ if(monster&&(t&0x4000000)){const arrows=[[0x80,'↑'],[0x100,'↗'],[0x20,'→'],[0x4,'↘'],[0x2,'↓'],[0x1,'↙'],[0x8,'←'],[0x40,'↖']].filter(([b])=>(c.data.link_marker||0)&b).map(x=>x[1]).join(' ')||'—';rows+=row('Attribute',c.attribute,'attribute-'+String(c.attribute).toLowerCase())+row('Link Rating',c.level)+row('Monster Type',c.race).replace('<div>','<div>'+typeIcon(c))+row('ATK',c.atk<0?'?':c.atk)+row('Link Arrows',arrows);}
+ else if(monster){const race=Number(c.data.race||0),index=race>0?Math.log2(race)+1:0;rows+=row('Attribute',c.attribute,'attribute-'+String(c.attribute).toLowerCase())+row('Level',c.level).replace('<div>', '<div><img class="genre-icon" src="assets/icons/level-star.png" alt="">')+row('Monster Type',c.race).replace('<div>', '<div>'+typeIcon(c))+row('ATK',c.atk<0?'?':c.atk)+row('DEF',c.defense<0?'?':c.defense)+((t&0x1000000)?row('Pendulum Scale',`${c.data.lscale} / ${c.data.rscale}`):'');}
  return `<h3 class="inspect-card-name">${esc(c.name)}</h3><div class="inspect-facts">${rows}</div>${genreIcons(c)}`;
 }
 

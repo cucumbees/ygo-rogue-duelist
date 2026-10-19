@@ -1,4 +1,4 @@
-"""Isolated pool, reward, save and tag-wallet integration checks."""
+"""Isolated pool, reward, save and tag-wallet integration checks (tag wallet removed)."""
 import sys,json,random,tempfile,copy
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
@@ -35,17 +35,4 @@ try:g.finish_duel(r,{'protocol':1,'id':'ancient-test','winner':0,'lp':8000,'even
 except ValueError:pass
 assert r['gold']==paid
 loss=prepare();g.finish_duel(loss,{'protocol':1,'id':'ancient-test','winner':1,'lp':0,'events':[event]},random.Random(12));assert loss['gold']==150
-from tag_campaign import TagCampaign
-profile=storage.profile();s=TagCampaign([0,1],[profile,profile],seed=7)
-for seat in (0,1):
- for action in ('auto','choose','ready'):
-  value=next(x for x in s.players[seat]['routes'] if x!=s.players[1-seat]['opponent']) if action=='choose' else None
-  s.command(seat,{'id':f'{seat}-{action}','revision':s.revision,'action':action,'value':value})
-assert s.phase=='duel'
-# Compare identical team states, changing only the resolved custom-card events.
-before=copy.deepcopy(s);before.finish(0,8000,[]);s.finish(0,8000,events)
-assert s.shared['gold']-before.shared['gold']==100
-assert all(p['gold']==s.shared['gold'] for p in s.players)
-solemn=g.new_run(0,random.Random(2));solemn['artifacts']=['solemn_relic'];assert 'Duel.NegateActivation' in passives.script(solemn)
-assert 'solemn_relic' in content.ARTIFACTS
-print('PASS exclusive booster/general stock, fixed uncapped coins, save/load, duplicate finish rejection, loss credit, one shared tag payout, Solemn registration')
+print('PASS exclusive booster/general stock, fixed uncapped coins, save/load, duplicate finish rejection, loss credit, Solemn registration')

@@ -18,8 +18,8 @@ export function validateDeck(deck,pool,cards,original=null,unrestricted=false) {
   const alias=card.name;names[alias]=(names[alias]||0)+n;
  }
  for(const [id,n] of Object.entries(names))if(n>(unrestricted?3:Math.min(...cards.filter(c=>c.name===id).map(c=>LIMITS[c.id]??3))))errors.push(id+(unrestricted?' exceeds the three-copy limit.':' exceeds the April 2004 TCG copy limit.'));
- for(const id of deck.main||[])if(catalog.get(id)?.data?.type&64)errors.push('Fusion Monsters belong in the Fusion Deck.');
- for(const id of deck.extra||[])if(!(catalog.get(id)?.data?.type&64))errors.push('Only Fusion Monsters belong in the Fusion Deck.');
+ for(const id of deck.main||[])if(catalog.get(id)?.data?.type&0x4802040)errors.push('Fusion Monsters belong in the Fusion Deck.');
+ for(const id of deck.extra||[])if(!(catalog.get(id)?.data?.type&0x4802040))errors.push('Only Fusion Monsters belong in the Fusion Deck.');
  if(original){if(deck.main.length!==original.main.length)errors.push('Keep your starting Main Deck size.');const previous=counts(deckCards(original));if(Object.keys({...previous,...used}).some(id=>previous[id]!==used[id]))errors.push('Siding must preserve all cards in your match decks.');}
  return [...new Set(errors)];
 }
@@ -28,7 +28,7 @@ export function validateDeck(deck,pool,cards,original=null,unrestricted=false) {
 export function moveSideCard(deck,from,id,cards){
  if(!['main','side','extra'].includes(from))return false;
  const index=deck[from].indexOf(id),card=cards.find(c=>c.id===id);if(index<0||!card)return false;
- const to=from==='side'?(card.data.type&64?'extra':'main'):'side';
+ const to=from==='side'?(card.data.type&0x4802040?'extra':'main'):'side';
  deck[from].splice(index,1);deck[to].push(id);return true;
 }
 

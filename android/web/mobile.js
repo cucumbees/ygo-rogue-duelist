@@ -1,4 +1,6 @@
 import {relicEyeIcon} from './relic-eye-icon.js';
+
+import {startModernArtDownload} from './modern-art.js';
 import {replayVersion} from './replay-version.js';
 import {frameLevelName,deckCardMarkup,monsterTypes,modifiedCard,deckStats,attributeOrder} from './feedback-ui.js';
 
@@ -52,8 +54,6 @@ import {polishDuel,polishShop,duelFinish} from './presentation-polish.js';
 
 import {showShadowVictory,clearShadowVictory} from './shadow-victory.js';
 
-import {DraftUI} from './draft-ui.js';
-
 import {openEmotePicker,showDuelEmote,clearDuelEmotes,setEmoteVolumeReader,positionDuelEmotes} from './duel-emotes.js';
 
 import {rewardMarkup,mountRewardSlots} from './reward-slots.js';
@@ -83,10 +83,6 @@ import {balancedVolume,resumeBalancedAudio,preloadSoundEffects} from './audio-ba
 import {searches as deckSearches} from './card-search.js';
 
 import {rankFor} from './collector-rules.js';
-
-import {CollectorUI} from './collector-ui.js';
-
-import {COLLECTOR_MENU_CARD} from './collector-roster.js';
 
 import {collectorIntroduction,collectorIntroductionMarkup} from './collector-introduction.js';
 
@@ -122,8 +118,6 @@ import {relicImage,relicArtwork,activeTagCharacters} from './ui-art.js';
 
 import {promptContext} from './prompt-context.js';
 
-import {TagUI} from './tag-ui.js';
-
 import {cardImages,preloadCards} from './card-assets.js';
 
 import {loadPyodide} from './pyodide/pyodide.mjs';
@@ -150,11 +144,11 @@ let toastQueue=[],toastBusy=false,music=new Audio(),sfx=new Audio(),menuSfx=new 
 
 setUISoundVolume(()=>Number(state?.settings?.sound||0)/100);
 
-const cardsById=new Map(),previewRenders=new WeakMap();
+const cardsById=new Map(),previewRenders=new WeakMap(),modernIds=new Set();
 
 const card=id=>cardsById.get(Number(id));
 
-const image=id=>cardImages.get(Number(id))||`assets/cards/${id}.jpg`;
+const image=id=>cardImages.get(Number(id))||(modernIds.has(Number(id))?(cardsById.get(Number(id))?.image||`https://images.ygoprodeck.com/images/cards/${id}.jpg`):`assets/cards/${id}.jpg`);
 
 const character=()=>content.characters[state.run.character];
 
@@ -178,8 +172,7 @@ const duelCancel=(label,action,extra='')=>duelDecision(label,action,extra,true);
 
 const cardButton=(id,extra='',active=false,mis=false)=>`<button class="cardbtn ${active?'selected':''}" data-preview="${id}" ${extra}>${mis?'<b class="misprint">MISPRINT</b>':''}<img draggable="false" loading="lazy" src="${image(id)}" alt="${esc(card(id)?.name||'Card')}"><span>${esc(card(id)?.name||'Card')}</span></button>`;
 
-const baseMenu=[['Online',14731897,'spell','Tag Duels · Draft Duels · Ultimate Collector','online'],['Continue',30834988,'trap','Return to your saved journey.','continue'],['New Game',71625222,'effect','Choose a duelist. Draft a new beginning.','characters'],['Settings',23171610,'spell','Adjust audio, visuals, gameplay, and data-sharing settings.','settings'],['Watch CPU duel',28566710,'trap','Observe and test two opponent AIs.','cpu'],['Collection',75500286,'spell','Every card, booster and relic.','collection'],['Achievements',32012841,'normal','Your feats and lifetime progress.','achievements'],['Tutorial',91595718,'spell','Learn the field, shops and controls.','tutorial']];
-const onlineMenu=[['Tag Duels',81332143,'spell','Team up across Android and web.','tag'],['Draft Duels',3549275,'effect','Double boosters. Build your deck. Challenge a friend.','draft-pvp'],COLLECTOR_MENU_CARD,['Main Menu',71625222,'trap','Return to the main menu.','main-menu']];
+const baseMenu=[['Continue',30834988,'trap','Return to your saved journey.','continue'],['New Game',71625222,'effect','Choose a duelist. Draft a new beginning.','characters'],['Settings',23171610,'spell','Adjust audio, visuals, gameplay, and data-sharing settings.','settings'],['Watch CPU duel',28566710,'trap','Observe and test two opponent AIs.','cpu'],['Collection',75500286,'spell','Every card, booster and relic.','collection'],['Achievements',32012841,'normal','Your feats and lifetime progress.','achievements'],['Tutorial',91595718,'spell','Learn the field, shops and controls.','tutorial']];
 
 
 
@@ -489,11 +482,13 @@ async function showCollectionSources(id,target){
 
 function setPreview(id,element=null){if(!id)return;preview=Number(id);previewLocation=element?.dataset.zone?element.dataset.zone.split(',').map(Number):element?.dataset.hand!==undefined?[0,L.HAND,Number(element.dataset.hand)]:null;const box=document.querySelector('.inspection');if(box){const location=previewLocation?.join(',')||'',previous=previewRenders.get(box);if(previous?.id===preview&&previous.location===location&&previous.snapshot===snapshot)return;const markup=previewMarkup();if(box.innerHTML!==markup)box.innerHTML=markup;previewRenders.set(box,{id:preview,location,snapshot})}}
 
+const linkMarkerText=m=>[[0x80,'↑'],[0x100,'↗'],[0x20,'→'],[0x4,'↘'],[0x2,'↓'],[0x1,'↙'],[0x8,'←'],[0x40,'↖']].filter(([b])=>(m||0)&b).map(x=>x[1]).join(' ')||'—';
+
 function previewMarkup(){let c=card(preview);
 
  if(c&&snapshot&&screen==='duel'&&previewLocation){const [p,loc,seq]=previewLocation;const zone=loc===L.HAND?'hand':loc===L.MZONE?'monsters':'spells';const live=snapshot.players[p]?.[zone]?.[seq];if(live?.code===c.id&&(p===0||live.position&5))c=liveCardFacts(c,live,content.cards);}
 
-if(!c)return '<p>Tap a card to inspect it. Tap it again or choose an action to play.</p>';return `<img src="${image(c.id)}"><h3>${esc(c.name)}</h3><div class="badges">${cardBadges(c)}</div>${c.data.type&1?`<div class="stats"><img class="genre-icon" src="assets/icons/level-star.png" alt="Level"> ${c.level}<br>ATK ${c.atk} / DEF ${c.defense}</div>`:''}${genreIcons(c)}<div class="card-text">${esc(displayCardText(c.desc))}</div>`}
+if(!c)return '<p>Tap a card to inspect it. Tap it again or choose an action to play.</p>';return `<img src="${image(c.id)}"><h3>${esc(c.name)}</h3><div class="badges">${cardBadges(c)}</div>${c.data.type&1?(c.data.type&0x4000000?`<div class="stats">LINK-${c.level}<br>ATK ${c.atk} / ${linkMarkerText(c.data.link_marker)}</div>`:`<div class="stats"><img class="genre-icon" src="assets/icons/level-star.png" alt="Level"> ${c.level}${c.data.type&0x1000000?` · Scale ${c.data.lscale}/${c.data.rscale}`:''}<br>ATK ${c.atk} / DEF ${c.defense}</div>`):''}${genreIcons(c)}<div class="card-text">${esc(displayCardText(c.desc))}</div>`}
 
 let titleMotion=null;
 
@@ -507,7 +502,7 @@ let menu=baseMenu,menuPage='main',menuPageEntry=null;
 
 menuIndex=baseMenu.findIndex(item=>item[4]==='continue');
 
-function renderTitle(){void remindReplayUpload(()=>screen==='title');titleMotion?.destroy();const activeMenu=menuPageEntry||menu[menuIndex]?.[4];menuPageEntry=null;menu=menuPage==='online'?[...onlineMenu]:baseMenu.filter(m=>!['tutorial','achievements'].includes(m[4])&&(m[4]!=='cpu'||state.profile.cpu_viewer_unlocked));if(menuPage==='main'&&state.profile.gallery_unlocked)menu.push(['Gallery',75500286,'spell','Under construction','gallery']);menuIndex=Math.max(0,menu.findIndex(m=>m[4]===activeMenu));app.innerHTML=`<div class="title"><a class="discord-link" href="https://discord.gg/QD36Q3VG7F" target="_blank" rel="noopener noreferrer" aria-label="Join YGO Rogue Duelist on Discord" title="Discord"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4a19.8 19.8 0 0 0-4.9-1.5l-.6 1.2a18.3 18.3 0 0 0-5.6 0l-.6-1.2a20 20 0 0 0-4.9 1.5C.6 9 .1 13.5.4 18a20 20 0 0 0 6 3l1.2-2a12 12 0 0 1-1.9-.9l.5-.4c3.8 1.8 7.9 1.8 11.6 0l.5.4-1.9.9 1.2 2a20 20 0 0 0 6-3c.4-5.2-.7-9.6-3.3-13.6ZM8.3 15.4c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Zm7.4 0c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Z"/></svg></a>${Array.from({length:24},(_,i)=>`<i class="particle" style="left:${i*4.2}%;animation-delay:-${i*.47}s;animation-duration:${6+i%5}s"></i>`).join('')}<img class="game-logo" src="assets/rogue-duelist-logo.png" alt="Yu-Gi-Oh: Rogue Duelist"><div class="carousel">${menu.map((m,i)=>{let d=(i-menuIndex+menu.length)%menu.length;if(d>3)d-=menu.length;return `<button class="menu-card ${m[2]}" data-menu="${i}" data-distance="${Math.abs(d)}" style="--menu-offset:${d};left:${50+d*23}%;scale:${d?'.72':'1'};z-index:${10-Math.abs(d)};filter:${d?'brightness(.58)':'none'};animation-delay:-${i*.8}s" ${Math.abs(d)>2?'hidden':''}><h3 class="${m[0]==='Ultimate Collector'?'compact-menu-title':''}">${m[0]}</h3><div class="art"><img src="${m[4]==='gallery'?'assets/Meerkat.png':'assets/menu/'+m[1]+'.jpg'+(m[4]==='online'?'?v=unity-610':'')}"></div><p>${m[3]}</p></button>`}).join('')}</div><small class="title-version">v${esc(replayVersion)}</small><small style="padding-bottom:8px">Fan Experiment · EDOPro core · Progress saved on this device</small></div>`;titleMotion=mountMenuMotion(app.querySelector('.carousel'),menu.length,menuIndex,index=>{menuIndex=index})}
+function renderTitle(){void remindReplayUpload(()=>screen==='title');titleMotion?.destroy();const activeMenu=menuPageEntry||menu[menuIndex]?.[4];menuPageEntry=null;menu=baseMenu.filter(m=>!['tutorial','achievements'].includes(m[4])&&(m[4]!=='cpu'||state.profile.cpu_viewer_unlocked));if(menuPage==='main'&&state.profile.gallery_unlocked)menu.push(['Gallery',75500286,'spell','Under construction','gallery']);menuIndex=Math.max(0,menu.findIndex(m=>m[4]===activeMenu));app.innerHTML=`<div class="title"><a class="discord-link" href="https://discord.gg/QD36Q3VG7F" target="_blank" rel="noopener noreferrer" aria-label="Join YGO Rogue Duelist on Discord" title="Discord"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4a19.8 19.8 0 0 0-4.9-1.5l-.6 1.2a18.3 18.3 0 0 0-5.6 0l-.6-1.2a20 20 0 0 0-4.9 1.5C.6 9 .1 13.5.4 18a20 20 0 0 0 6 3l1.2-2a12 12 0 0 1-1.9-.9l.5-.4c3.8 1.8 7.9 1.8 11.6 0l.5.4-1.9.9 1.2 2a20 20 0 0 0 6-3c.4-5.2-.7-9.6-3.3-13.6ZM8.3 15.4c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Zm7.4 0c-1.1 0-2-1-2-2.3s.9-2.3 2-2.3 2 1 2 2.3-.9 2.3-2 2.3Z"/></svg></a>${Array.from({length:24},(_,i)=>`<i class="particle" style="left:${i*4.2}%;animation-delay:-${i*.47}s;animation-duration:${6+i%5}s"></i>`).join('')}<img class="game-logo" src="assets/rogue-duelist-logo.png" alt="Yu-Gi-Oh: Rogue Duelist"><div class="carousel">${menu.map((m,i)=>{let d=(i-menuIndex+menu.length)%menu.length;if(d>3)d-=menu.length;return `<button class="menu-card ${m[2]}" data-menu="${i}" data-distance="${Math.abs(d)}" style="--menu-offset:${d};left:${50+d*23}%;scale:${d?'.72':'1'};z-index:${10-Math.abs(d)};filter:${d?'brightness(.58)':'none'};animation-delay:-${i*.8}s" ${Math.abs(d)>2?'hidden':''}><h3 class="${m[0]==='Ultimate Collector'?'compact-menu-title':''}">${m[0]}</h3><div class="art"><img src="${m[4]==='gallery'?'assets/Meerkat.png':'assets/menu/'+m[1]+'.jpg'+(m[4]==='online'?'?v=unity-610':'')}"></div><p>${m[3]}</p></button>`}).join('')}</div><small class="title-version">v${esc(replayVersion)}</small><small style="padding-bottom:8px">Fan Experiment · EDOPro core · Progress saved on this device</small></div>`;titleMotion=mountMenuMotion(app.querySelector('.carousel'),menu.length,menuIndex,index=>{menuIndex=index})}
 
 let copycatTaps=0,deviceSecretTaps=0,secretPlaying=false;
 
@@ -630,9 +625,9 @@ function markGoldenCards(root,r){const ids=[...(r.golden_cards||[]),r.golden_car
 
 function bountyBanner(r){if(!r?.artifacts?.includes('bounty_list')||!r.bounty_objective)return '';const b=r.bounty_objective;return `<section class="bounty-banner" aria-label="Bounty objective"><strong>BOUNTY</strong><span>${esc(b.title||'Objective')}</span><p>${esc(b.description||'Complete this Duel to earn 40 coins.')}</p><small>Reward: +40 coins</small></section>`}
 
-function renderDraft(){const r=state.run,copy=(character().copycat||character().engine_deck),main=r.selected.filter(i=>!(card(r.pool[i]).data.type&64)).length;let count={};r.selected.forEach(i=>count[r.pool[i]]=(count[r.pool[i]]||0)+1);shell('Build your deck',`<div class="scroll draft-scroll"><div class="draft-summary"><div><p class="draft-count">${main} / ${deckMinimum(r,content.characters[r.character])}+ minimum main · ${r.selected.length-main} Extra Deck · ${r.artifacts.includes('broken_limiter')?'No copy limit (Broken Limiter).':'Maximum three copies.'} ${copy?(character().copycat?'Copycat’s borrowed deck is read-only.':'Dueling Engine’s fixed starter deck is read-only.') : ''}</p><p class="draft-inspect-help">Hold a card to inspect · Drag to scroll</p></div><button class="tag-choose-opponent draft-next deck-count-arrow" data-do="routes" ${!copy&&(main<(deckMinimum(r,content.characters[r.character]))||main>60)?'disabled':''} aria-label="${main}/${deckMinimum(r,content.characters[r.character])}+ main deck cards — Next duel"><span><span class="tag-next-label"><strong>${main}/${deckMinimum(r,content.characters[r.character])}+</strong></span></span></button></div><div class="draft-tabs">${searchButton('draft')}${['All','Monster','Spell','Trap','Deck'].map(t=>`<button data-draft-tab="${t}" class="${draftTab===t?'active':''}">${t}</button>`).join('')}<select data-draft-sort>${['Newest','Default','Name','Type','Attribute','ATK','DEF','Level','Oldest'].map(o=>`<option ${o===draftSort?'selected':''}>${o}</option>`).join('')}</select>${btn('Deselect all','deselect-all',copy?'disabled':'')}${btn('Auto-build','auto',copy?'disabled':'')}</div>${bountyBanner(r)}<div class="draft-card-scroll"><div class="cardgrid">${draftOrder(r.pool,r.selected).map(i=>deckCardMarkup(cardButton(r.pool[i],`data-pick="${i}"`,r.selected.includes(i),!!(r.card_mods&&r.card_mods[i]!==undefined)),card(r.pool[i]),r,i,content.artifactInfo)).join('')}</div></div></div>`,`${r.stage==='shop'?btn('Back to shop','shop'):''}`);markGoldenCards(app,r);deckReadyFeedback(app,main,deckMinimum(r,content.characters[r.character]))}
+function renderDraft(){const r=state.run,copy=(character().copycat||character().engine_deck),main=r.selected.filter(i=>!(card(r.pool[i]).data.type&0x4802040)).length;let count={};r.selected.forEach(i=>count[r.pool[i]]=(count[r.pool[i]]||0)+1);shell('Build your deck',`<div class="scroll draft-scroll"><div class="draft-summary"><div><p class="draft-count">${main} / ${deckMinimum(r,content.characters[r.character])}+ minimum main · ${r.selected.length-main} Extra Deck · ${r.artifacts.includes('broken_limiter')?'No copy limit (Broken Limiter).':'Maximum three copies.'} ${copy?(character().copycat?'Copycat’s borrowed deck is read-only.':'Dueling Engine’s fixed starter deck is read-only.') : ''}</p><p class="draft-inspect-help">Hold a card to inspect · Drag to scroll</p></div><button class="tag-choose-opponent draft-next deck-count-arrow" data-do="routes" ${!copy&&(main<(deckMinimum(r,content.characters[r.character]))||main>60)?'disabled':''} aria-label="${main}/${deckMinimum(r,content.characters[r.character])}+ main deck cards — Next duel"><span><span class="tag-next-label"><strong>${main}/${deckMinimum(r,content.characters[r.character])}+</strong></span></span></button></div><div class="draft-tabs">${searchButton('draft')}${['All','Monster','Spell','Trap','Deck'].map(t=>`<button data-draft-tab="${t}" class="${draftTab===t?'active':''}">${t}</button>`).join('')}<select data-draft-sort>${['Newest','Default','Name','Type','Attribute','ATK','DEF','Level','Oldest'].map(o=>`<option ${o===draftSort?'selected':''}>${o}</option>`).join('')}</select>${btn('Deselect all','deselect-all',copy?'disabled':'')}${btn('Auto-build','auto',copy?'disabled':'')}</div>${bountyBanner(r)}<div class="draft-card-scroll"><div class="cardgrid">${draftOrder(r.pool,r.selected).map(i=>deckCardMarkup(cardButton(r.pool[i],`data-pick="${i}"`,r.selected.includes(i),!!(r.card_mods&&r.card_mods[i]!==undefined)),card(r.pool[i]),r,i,content.artifactInfo)).join('')}</div></div></div>`,`${r.stage==='shop'?btn('Back to shop','shop'):''}`);markGoldenCards(app,r);deckReadyFeedback(app,main,deckMinimum(r,content.characters[r.character]))}
 
-function updateDraft(){if(screen!=='draft')return;const r=state.run,main=r.selected.filter(i=>!(card(r.pool[i]).data.type&64)).length;const minimum=deckMinimum(r,content.characters[r.character]),arrow=document.querySelector('.deck-count-arrow');if(arrow){arrow.disabled=!(character().copycat||character().engine_deck)&&(main<minimum||main>60);arrow.querySelector('strong').textContent=`${main}/${minimum}+`;arrow.setAttribute('aria-label',`${main}/${minimum}+ main deck cards — Next duel`);markGoldenCards(app,r);deckReadyFeedback(app,main,minimum);}document.querySelector('.draft-count').textContent=`${main} / ${deckMinimum(r,content.characters[r.character])}+ minimum main · ${r.selected.length-main} Extra Deck · ${(r.artifacts.includes('broken_limiter')?'No copy limit (Broken Limiter).':'Maximum three copies.')} ${(character().copycat||character().engine_deck)?'Fixed deck is read-only.':''}`;document.querySelectorAll('[data-pick]').forEach(el=>{const active=r.selected.includes(+el.dataset.pick);el.classList.toggle('selected',active);el.setAttribute('aria-pressed',String(active))})}
+function updateDraft(){if(screen!=='draft')return;const r=state.run,main=r.selected.filter(i=>!(card(r.pool[i]).data.type&0x4802040)).length;const minimum=deckMinimum(r,content.characters[r.character]),arrow=document.querySelector('.deck-count-arrow');if(arrow){arrow.disabled=!(character().copycat||character().engine_deck)&&(main<minimum||main>60);arrow.querySelector('strong').textContent=`${main}/${minimum}+`;arrow.setAttribute('aria-label',`${main}/${minimum}+ main deck cards — Next duel`);markGoldenCards(app,r);deckReadyFeedback(app,main,minimum);}document.querySelector('.draft-count').textContent=`${main} / ${deckMinimum(r,content.characters[r.character])}+ minimum main · ${r.selected.length-main} Extra Deck · ${(r.artifacts.includes('broken_limiter')?'No copy limit (Broken Limiter).':'Maximum three copies.')} ${(character().copycat||character().engine_deck)?'Fixed deck is read-only.':''}`;document.querySelectorAll('[data-pick]').forEach(el=>{const active=r.selected.includes(+el.dataset.pick);el.classList.toggle('selected',active);el.setAttribute('aria-pressed',String(active))})}
 
 let draftTap=null,draftPointer=null;
 
@@ -754,7 +749,7 @@ async function startDuel(resume=false,opponent=null){busy=true;app.innerHTML='<s
 
  if(!resume){await command('choose',opponent);await command('begin');await playEncounterReveal({content,collectors:state.run.fallen_routes,players:[state.run.character],opponents:[state.run.opponent],lp:[state.run.mobile_duel.lp,state.run.mobile_duel.enemyLP],sound:duelSound,tickSound:slotTickSound,stopTick:()=>slotTick.pause(),active:()=>screen==='routes'||screen==='ending'})}
 
- if(!engine)engine=await new MobileDuel([...content.cards,...content.tokenCards]).init();else engine.destroy();const d=state.run.mobile_duel;if(!d)throw Error('No resumable mobile duel.');
+ if(!engine)engine=await new MobileDuel(content.engineCards).init();else engine.destroy();const d=state.run.mobile_duel;if(!d)throw Error('No resumable mobile duel.');
 
  coinMilestones.delete(engine);duelAnimations.delete(engine);if(!resume)summonMusic.delete(engine);snapshot=engine.start(d.deck,d.enemy,d.lp,d.enemyLP,d.draw,d.seed,d.extra,d.enemyExtra,d.passives,d.enemyDraw??5);
 
@@ -864,13 +859,17 @@ function levelChangeMarkup(c){
 
 }
 
+function emzCell(s,k,col,row){const mine=s.players[0].monsters[k],theirSeq=k===5?6:5,theirs=s.players[1].monsters[theirSeq];return mine?zone(mine,0,L.MZONE,k,col,row):theirs?zone(theirs,1,L.MZONE,theirSeq,col,row):zone(null,0,L.MZONE,k,col,row,'EMZ');}
+
+function modernCardMarkup(c,loc,seq){const d=engine.data?.[c.code];if(!d)return '';let out='';if(loc===L.MZONE&&(d.type&0x4000000)&&d.link_marker){const dirs=[[0x40,'tl'],[0x80,'t'],[0x100,'tr'],[0x8,'l'],[0x20,'r'],[0x1,'bl'],[0x2,'b'],[0x4,'br']];out+=`<span class="link-markers" aria-hidden="true">${dirs.filter(([bit])=>d.link_marker&bit).map(([,n])=>`<i class="lm lm-${n}"></i>`).join('')}</span>`}if(loc===L.SZONE&&(d.type&0x1000000)&&(seq===0||seq===4)&&engine.modern)out+=`<span class="pscale ${seq?'right':'left'}" title="Pendulum Scale">${seq?d.rscale:d.lscale}</span>`;return out}
+
 function zone(c,player,loc,seq,col,row,label=''){const m=engine.pending,isPlace=m?.player===0&&[M.SELECT_PLACE,M.SELECT_DISFIELD].includes(m.type);const option=isPlace?engine.choices(m).find(a=>a.response.places?.[0]?.player===player&&a.response.places[0].location===loc&&a.response.places[0].sequence===seq):null;
 
  const target=selectionEntries(m).find(x=>x.c.controller===player&&x.c.location===loc&&x.c.sequence===seq);
 
  const known=c&&(player===0||!!(c.position&5)||!!engine.knownFieldCard?.(0,{...c,controller:player,location:loc,sequence:seq})),hidden=c&&!(c.position&5),mon=loc===L.MZONE;const attack=c&&legalCardActions(player,loc,seq,c.code).some(a=>a.response.type===R.SELECT_BATTLECMD&&a.response.action===B.SELECT_BATTLE);
 
- return `<button class="zone ${player?'enemy':''} ${!c?'empty':''} ${mon&&c&&(c.position&12)?'defense':''} ${option||target?'selectable':''} ${target&&pickSet.has(target.i)?'target-picked':''}" style="grid-column:${col};grid-row:${row}" data-zone="${player},${loc},${seq}" ${target?`data-field-target="${target.i}"`:''} ${known?`data-code="${c.code}" data-preview="${c.code}"`:''}>${c?`<img src="${hidden?'assets/card-back.jpg':image(c.code)}" alt="${known?esc(card(c.code)?.name):'Face-down card'}">`:esc(label||'')}${known&&mon&&!hidden?`<span class="power"><b data-stat="attack" data-value="${c.attack}" class="${c.attack>(card(c.code)?.atk??c.attack)?'stat-up':c.attack<(card(c.code)?.atk??c.attack)?'stat-down':''}">${c.attack}</b> / <b data-stat="defense" data-value="${c.defense}">${c.defense}</b></span>`:''}${known&&!hidden?cardCountersMarkup(c):''}${known&&mon?levelChangeMarkup(c):''}${attack?'<span class="sword" role="img" aria-label="Can attack" title="Can attack"></span>':''}</button>`;
+ return `<button class="zone ${player?'enemy':''} ${!c?'empty':''} ${mon&&c&&(c.position&12)?'defense':''} ${option||target?'selectable':''} ${target&&pickSet.has(target.i)?'target-picked':''}" style="grid-column:${col};grid-row:${row}" data-zone="${player},${loc},${seq}" ${target?`data-field-target="${target.i}"`:''} ${known?`data-code="${c.code}" data-preview="${c.code}"`:''}>${c?`<img src="${hidden?'assets/card-back.jpg':image(c.code)}" alt="${known?esc(card(c.code)?.name):'Face-down card'}">`:esc(label||'')}${known&&mon&&!hidden?`<span class="power"><b data-stat="attack" data-value="${c.attack}" class="${c.attack>(card(c.code)?.atk??c.attack)?'stat-up':c.attack<(card(c.code)?.atk??c.attack)?'stat-down':''}">${c.attack}</b> / <b data-stat="defense" data-value="${c.defense}">${(engine.data?.[c.code]?.type&0x4000000)?'LINK-'+(card(c.code)?.level??''):c.defense}</b></span>`:''}${known&&!hidden?cardCountersMarkup(c):''}${known&&!hidden?modernCardMarkup(c,loc,seq):''}${known&&mon?levelChangeMarkup(c):''}${attack?'<span class="sword" role="img" aria-label="Can attack" title="Can attack"></span>':''}</button>`;
 
 }
 
@@ -900,13 +899,15 @@ function renderDuel(){if(!snapshot)return;const inspectionScroll=document.queryS
 
  rows.push(zone(s.players[0].spells[5],0,L.SZONE,5,2,4,'Field'),pile(0,'extra',2,5),pile(0,'grave',8,4),pile(0,'banished',9,4),pile(0,'deck',8,5));
 
+ if(s.modern)rows.push(emzCell(s,5,4,3),emzCell(s,6,6,3));
+
  rows.push(`<button id="chain-toggle" data-do="toggle-chain" class="chain-control ${(!heldAlwaysChain&&(rightClickNoChain||chainMode==='never'))?'chain-disabled':!heldAlwaysChain&&!rightClickNoChain&&chainMode==='sometimes'?'chain-sometimes':''}" aria-label="Chain prompts" aria-pressed="${heldAlwaysChain?'true':rightClickNoChain?'false':chainMode==='sometimes'?'mixed':chainMode==='always'}" title="${chainLabel()}" style="grid-column:9;grid-row:5"><img src="textures/chain.png" alt=""><span>${chainLabel()}</span></button>`);
 
  rows.push(`<div class="phases">${phases.map(([n,label])=>`<button data-phase="${n}" class="${(n===8?s.phase>=8&&s.phase<256:s.phase===n)?'active':''}" ${phaseAction(n)?'':'disabled'}>${label}</button>`).join('')}${fieldSelectBare(m)?`<button data-do="confirm-target" class="phase-confirm duel-confirm" aria-label="Confirm selection" title="Confirm selection" ${materialStatus(m,pickSet,engine,M).valid?'':'disabled'}><span class="duel-decision-label">Done</span><span class="duel-decision-icon" aria-hidden="true">✓</span></button>${m.can_cancel?`<button data-do="cancel-target" class="phase-confirm duel-cancel" aria-label="Cancel"><span class="duel-decision-label">✕</span><span class="duel-decision-icon" aria-hidden="true">✕</span></button>`:''}`:''}</div>`);
 
 function fieldSelectBare(m){if(!m||m.player!==0)return false;const entries=selectionEntries(m);return entries.some(x=>fieldEntry(x.c))&&![M.SELECT_SUM,M.SELECT_UNSELECT_CARD].includes(m.type)&&!entries.some(x=>!fieldEntry(x.c));}
 
- renderDuelDOM(app,`<div class="duel"><aside class="inspection">${previewMarkup()}</aside><div class="portrait-relics">${duelCurseMarkup()}${relicIndicatorMarkup()}</div><section class="duel-main"><div class="duel-particles" aria-hidden="true">${Array.from({length:14},(_,i)=>`<i style="--x:${(i*37+7)%100}%;--y:${(i*19+3)%100}%;--delay:-${i*1.7}s;--duration:${10+i%6}s"></i>`).join('')}</div><div class="lpbar"><div class="life"><strong>${s.lp[0]}</strong><span>${esc(own.name)}</span></div><div class="turn">TURN<b>${s.turn}</b></div><div class="life enemy"><span>${r.encore_active?'World Champion':esc(opponent.name)}</span><strong>${s.lp[1]}</strong></div></div><div class="field-wrap"><div class="enemy-hand">${s.players[1].hand.map(c=>engine.handRevealed?.(0,c)?`<button data-inspect="${c.code}" aria-label="Inspect revealed card"><img src="${image(c.code)}" alt="${esc(engine.name(c.code))}"></button>`:'<img src="assets/card-back.jpg" alt="Hidden card">').join('')}</div><img class="field-character" src="assets/${opponent.sprite}">${r.fallen_routes?.[r.opponent]?'<span class="uc-opponent-tag uc-field-tag" title="Ultimate Collector opponent">UC</span>':''}<img class="field-character own" data-do="duel-emotes" role="button" tabindex="0" aria-label="Send an emote" src="assets/${own.sprite}"><div class="mat">${rows.join('')}</div>${promptMarkup(m)}</div><div class="hand"${handStyle}>${s.players[0].hand.map((c,i)=>c?`<button data-hand="${i}" data-code="${c.code}" data-preview="${c.code}"><img src="${image(c.code)}" alt="${esc(card(c.code)?.name)}">${levelChangeMarkup(c)}${engine.misprintedHands?.[0]?.has(i)?`<span class="hand-misprint" aria-label="Misprinted card">Misprint · ${c.attack} / ${c.defense}</span>`:''}</button>`:'').join('')}</div><div class="duel-tools duel-tools-left">${relicIndicatorMarkup()}</div><div class="duel-tools duel-tools-right">${tagUI?`<span class="duel-room-code" aria-label="Room code">${esc(tagUI.session?.code||'')}</span>`:''}${btn('Options','duel-options')}</div></section></div>`);
+ renderDuelDOM(app,`<div class="duel"><aside class="inspection">${previewMarkup()}</aside><div class="portrait-relics">${duelCurseMarkup()}${relicIndicatorMarkup()}</div><section class="duel-main"><div class="duel-particles" aria-hidden="true">${Array.from({length:14},(_,i)=>`<i style="--x:${(i*37+7)%100}%;--y:${(i*19+3)%100}%;--delay:-${i*1.7}s;--duration:${10+i%6}s"></i>`).join('')}</div><div class="lpbar"><div class="life"><strong>${s.lp[0]}</strong><span>${esc(own.name)}</span></div><div class="turn">TURN<b>${s.turn}</b></div><div class="life enemy"><span>${r.encore_active?'World Champion':esc(opponent.name)}</span><strong>${s.lp[1]}</strong></div></div><div class="field-wrap"><div class="enemy-hand">${s.players[1].hand.map(c=>engine.handRevealed?.(0,c)?`<button data-inspect="${c.code}" aria-label="Inspect revealed card"><img src="${image(c.code)}" alt="${esc(engine.name(c.code))}"></button>`:'<img src="assets/card-back.jpg" alt="Hidden card">').join('')}</div><img class="field-character" src="assets/${opponent.sprite}">${r.fallen_routes?.[r.opponent]?'<span class="uc-opponent-tag uc-field-tag" title="Ultimate Collector opponent">UC</span>':''}<img class="field-character own" data-do="duel-emotes" role="button" tabindex="0" aria-label="Send an emote" src="assets/${own.sprite}"><div class="mat${s.modern?' modern':''}">${rows.join('')}</div>${promptMarkup(m)}</div><div class="hand"${handStyle}>${s.players[0].hand.map((c,i)=>c?`<button data-hand="${i}" data-code="${c.code}" data-preview="${c.code}"><img src="${image(c.code)}" alt="${esc(card(c.code)?.name)}">${levelChangeMarkup(c)}${engine.misprintedHands?.[0]?.has(i)?`<span class="hand-misprint" aria-label="Misprinted card">Misprint · ${c.attack} / ${c.defense}</span>`:''}</button>`:'').join('')}</div><div class="duel-tools duel-tools-left">${relicIndicatorMarkup()}</div><div class="duel-tools duel-tools-right">${btn('Options','duel-options')}</div></section></div>`);
 
  polishDuel(app,engine,s,card);
 
@@ -1373,7 +1374,7 @@ async function action(a,el={dataset:{}},silent=false){
 
  if(a==='duel-settings'){dialog('Settings',`<div class="settings">${duelBackgroundSetting()}<label>Music <input id="music" type="range" min="0" max="100" value="${state.settings.music}"><output>${state.settings.music}%</output></label><label>Sound effects <input id="sound" type="range" min="0" max="100" value="${state.settings.sound}"><output>${state.settings.sound}%</output></label></div>`);return}
 
-if(a==='defeated-collector-deck'){showDefeatedCollector(+el.dataset.index);return;}if(a==='collection-collector-back'){collectionKind='cards';renderCollection();return;}if(a==='collector-decklist'){const d=collectorLeaders[+el.dataset.index];if(d)dialog(d.name,Object.entries(d.deck).map(([zone,ids])=>`<h3>${esc(zone==='extra'?'Fusion':zone)}</h3><div class="cardgrid collector-decklist-grid">${ids.map(id=>`<button data-inspect="${id}"><img src="${image(id)}" alt="${esc(card(id)?.name)}"></button>`).join('')}</div>`).join(''));return;}if(a==='coin-bonuses'){await showCoinBonuses();return}if(a==='curse-info'){dialog(content.curses[el.dataset.curse]?.[0]||'Curse',`<p>${esc(curseDescription(content,el.dataset.curse,state.run?.challenge_level))}</p>`);return}if(a==='cpu'){if(state.profile.cpu_viewer_unlocked)await openCPU();return}if(a==='tag'){await openTag();return}if(a==='draft-pvp'){await openCollector(true);return}if(a==='collector'){await openCollector();return}if(tagUI){if(a==='active-curses'){dialog('Curses & LVL modifiers',modifierRowsMarkup(tagUI.view.modifiers));return}if(a==='pause'||a==='pause-title'||a==='title'){await tagUI.action('exit',{dataset:{}});return}if(a==='surrender'){dialog(tagUI.isCollector?'Surrender this duel?':'Surrender the team’s run?',tagUI.isCollector?`<p>This concedes the current duel. Your opponent gains one win in the best-of-three match.</p><div class="collector-surrender-actions">${duelConfirm('Confirm surrender','confirm-surrender')}${duelDecision('Cancel surrender','close','',true)}</div>`:duelConfirm('Confirm surrender','confirm-surrender'));return}if(a==='confirm-surrender'){modal.close();await tagUI.session.request('surrender');return}}if(busy&&!['close','toggle-chain','choose-monster-type','golden-card','relic-ledger','relic-detail','active-curses','curse-info','surrender','confirm-surrender','resume-duel'].includes(a))return;if(!silent&&!['buy','close','select-purchase','shop-reroll','sell-relic'].includes(a)){if((screen==='shop'&&a==='draft')||(screen==='draft'&&a==='shop'))playUISound('window-close');else effect(['start','new','confirm-new'].includes(a));}
+if(a==='defeated-collector-deck'){showDefeatedCollector(+el.dataset.index);return;}if(a==='collection-collector-back'){collectionKind='cards';renderCollection();return;}if(a==='collector-decklist'){const d=collectorLeaders[+el.dataset.index];if(d)dialog(d.name,Object.entries(d.deck).map(([zone,ids])=>`<h3>${esc(zone==='extra'?'Fusion':zone)}</h3><div class="cardgrid collector-decklist-grid">${ids.map(id=>`<button data-inspect="${id}"><img src="${image(id)}" alt="${esc(card(id)?.name)}"></button>`).join('')}</div>`).join(''));return;}if(a==='coin-bonuses'){await showCoinBonuses();return}if(a==='curse-info'){dialog(content.curses[el.dataset.curse]?.[0]||'Curse',`<p>${esc(curseDescription(content,el.dataset.curse,state.run?.challenge_level))}</p>`);return}if(a==='cpu'){if(state.profile.cpu_viewer_unlocked)await openCPU();return}if(tagUI){if(a==='active-curses'){dialog('Curses & LVL modifiers',modifierRowsMarkup(tagUI.view.modifiers));return}if(a==='pause'||a==='pause-title'||a==='title'){await tagUI.action('exit',{dataset:{}});return}if(a==='surrender'){dialog(tagUI.isCollector?'Surrender this duel?':'Surrender the team’s run?',tagUI.isCollector?`<p>This concedes the current duel. Your opponent gains one win in the best-of-three match.</p><div class="collector-surrender-actions">${duelConfirm('Confirm surrender','confirm-surrender')}${duelDecision('Cancel surrender','close','',true)}</div>`:duelConfirm('Confirm surrender','confirm-surrender'));return}if(a==='confirm-surrender'){modal.close();await tagUI.session.request('surrender');return}}if(busy&&!['close','toggle-chain','choose-monster-type','golden-card','relic-ledger','relic-detail','active-curses','curse-info','surrender','confirm-surrender','resume-duel'].includes(a))return;if(!silent&&!['buy','close','select-purchase','shop-reroll','sell-relic'].includes(a)){if((screen==='shop'&&a==='draft')||(screen==='draft'&&a==='shop'))playUISound('window-close');else effect(['start','new','confirm-new'].includes(a));}
 
  if(a==='active-curses'){const rows=await command('active-curses');dialog('This duel: curses & difficulty',modifierRowsMarkup(rows));return}
 
@@ -1507,7 +1508,7 @@ if(a==='defeated-collector-deck'){showDefeatedCollector(+el.dataset.index);retur
 
  if(a==='relic-ledger'){dialog('Run relics',relicLedgerMarkup());return}
 
- if(a==='online'){menuPage='online';menuPageEntry='tag';menuIndex=0;render();return;}if(a==='main-menu'){menuPage='main';menuPageEntry='continue';menuIndex=baseMenu.findIndex(m=>m[4]==='continue');render();return;}
+ if(a==='main-menu'){menuPage='main';menuPageEntry='continue';menuIndex=baseMenu.findIndex(m=>m[4]==='continue');render();return;}
  if(['title','characters','routes','draft','shop','achievements','relics','collection'].includes(a))go(a);
 
 }
@@ -1548,7 +1549,7 @@ async function boot(){try{
 
  await installDesktopStorage();
 
- const [files,meta]=await Promise.all([fetch('campaign-files.json',{cache:'no-store'}).then(r=>r.json()),fetch('content.json',{cache:'no-store'}).then(r=>r.json())]);content=meta;for(const c of [...content.cards,...(content.tokenCards||[])])if(!cardsById.has(c.id))cardsById.set(c.id,c);
+ const [files,meta]=await Promise.all([fetch('campaign-files.json',{cache:'no-store'}).then(r=>r.json()),fetch('content.json',{cache:'no-store'}).then(r=>r.json())]);content=meta;content.engineCards=[...content.cards,...(content.tokenCards||[]),...(content.modernCards||[])];for(const c of content.modernCards||[])modernIds.add(c.id);for(const c of content.engineCards)if(!cardsById.has(c.id))cardsById.set(c.id,c);
 
  await Promise.all([preloadCards([...content.cards,...(content.tokenCards||[])],({loaded,total,failed,bytes})=>{
 
@@ -1584,7 +1585,7 @@ async function boot(){try{
 
  document.querySelector('#loading-status').textContent='Step 6 of 6 · Preparing sound effects…';await preloadSoundEffects(effects);
 
- screen='title';render();await notices();document.dispatchEvent(new CustomEvent('game-startup-ready',{detail:{newDevice:Object.keys(saved).length===0}}));if(new URLSearchParams(location.search).has('desktop')){if(new URLSearchParams(location.search).get('mode')==='cpu')await openCPU();else await openTag();}
+ screen='title';render();await notices();document.dispatchEvent(new CustomEvent('game-startup-ready',{detail:{newDevice:Object.keys(saved).length===0}}));void startModernArtDownload((content.modernCards||[]).map(c=>c.id),{notify:toast});if(new URLSearchParams(location.search).has('desktop')){if(new URLSearchParams(location.search).get('mode')==='cpu')await openCPU();}
 
  void startupAndroidUpdate({native:window.ShadowNative,online:navigator.onLine,prompt:async version=>{
 
@@ -1604,9 +1605,7 @@ boot();
 
 
 
-let tagCloudPhase=null;
-
-let tagUI=null,tagOffline=null,tagDuelQueue=Promise.resolve(),tagFinalePlayed=false;
+const tagUI=null; // multiplayer removed: legacy guards below are inert
 
 const desktopToken=new URLSearchParams(location.search).get('desktop');
 
@@ -1627,72 +1626,6 @@ async function reportDesktopLayout(attempt=0){
 if(desktopToken)setTimeout(()=>reportDesktopLayout(),0);
 
 window.addEventListener('resize',()=>{if(desktopToken)reportDesktopLayout();if(desktopToken&&tagUI&&screen==='duel')desktopRPC('native-layout',(app.querySelector('header')?.getBoundingClientRect().bottom||0)/innerHeight).catch(console.error)});
-
-async function openCollector(draftMode=false){
-
- if(tagUI)return;tagOffline=state;screen='tag';tagDuelQueue=Promise.resolve();
-
- const owner=new (draftMode?DraftUI:CollectorUI)({root:app,content,profile:state.profile,backend:command,image,inspect,dialog,openPacks:presentPacks,getSlots:()=>state.slots,onResult:won=>track(won?'victory':'defeat'),onCheckpoint:()=>persist(true),
-
- onView:view=>{if(tagUI!==owner)return;if(view.phase==='duel')state={...state,run:view.run};else{screen='tag';engine=null;snapshot=null;}},
-
- onDuel:(s,cues)=>{tagDuelQueue=tagDuelQueue.catch(()=>{}).then(()=>{if(tagUI===owner&&owner.alive)return showTagDuel(s,cues,owner)});return tagDuelQueue;},
-
- onExit:async()=>{if(tagUI!==owner)return;clearTimeout(aiTimer);tagUI=null;engine=null;snapshot=null;await command('init');tagOffline=null;screen='title';render();}
-
- });
-
- tagUI=owner;
-
- try{await owner.init()}catch(error){owner.destroy();if(tagUI!==owner)return;tagUI=null;state=tagOffline;screen='title';render();dialog('Ultimate Collector',`<p>${esc(error.message)}</p>`);}
-
-}
-
-async function openTag(){
-
- tagCloudPhase=null;
-
- if(tagUI)return;tagOffline=state;screen='tag';track('characters');
-
- if(desktopToken){document.title='YGO Rogue Tag '+desktopToken.slice(0,12);const initial=await desktopRPC('bootstrap');state={...state,profile:initial.profile}}
-
- tagUI=new TagUI({sound:duelSound,tickSound:slotTickSound,stopTick:()=>slotTick.pause(),root:app,content,profile:state.profile,backend:desktopToken?desktopRPC:command,image,inspect,dialog,showRewards:showVictoryReceipt,showScorecard:()=>action('scorecard'),openPacks:presentPacks,onGoldenCards:offerGoldenCards,
-
- onView:view=>{const duelEnded=tagCloudPhase==='duel'&&view.phase!=='duel';tagCloudPhase=view.phase;if(duelEnded)void command('tag-profile',view.profile).then(()=>persist(true)).catch(error=>console.warn('Post-duel backup:',error.message));observeTagStats(view);state={...state,run:view.run,profile:view.profile};rewardPresentation?.refresh();track(view.phase==='duel'?(summonMusic.get(engine)||(view.duel?.mode==='pvp'?'champion':((view.run.round||0)+1)%3===0?'boss':'duel')):view.phase==='shop'?'shop':view.phase==='complete'?'victory':view.phase==='gameover'?'defeat':view.phase==='draft'?'draft':'characters');if(view.phase!=='duel'){document.querySelectorAll('.float-lp,.float-coins,.victory-settlement,.moving-card,.attack-beam,.duel-cue,.coin-toss,.dice-toss').forEach(el=>el.remove());screen='tag';engine=null;snapshot=null;if(desktopToken)desktopRPC('native-stop').catch(console.error)}},
-
- onDuel:(s,cues)=>{tagDuelQueue=tagDuelQueue.then(async()=>{if(!s.finished)tagFinalePlayed=false;await showTagDuel(s,cues);if(isCardWin(s.finished)&&!tagFinalePlayed){tagFinalePlayed=true;clearTimeout(aiTimer);removeActions();if(modal.open)modal.close();await playCardWin(s.finished)}}).catch(error=>toast(error.message));return tagDuelQueue;},
-
- onStatus:()=>{if(screen==='duel')tagConnectionBanner()},
-
- onBack:async profile=>{clearTimeout(aiTimer);engine=null;snapshot=null;screen='tag';busy=false;state={...tagOffline,profile};if(modal.open)modal.close();if(desktopToken)await desktopRPC('native-stop');track('characters')},
-
- onExit:async()=>{const profile=tagUI.profile;tagUI=null;engine=null;snapshot=null;state=tagOffline;tagOffline=null;await (desktopToken?desktopRPC:command)('tag-profile',profile);state.profile=profile;screen='title';if(desktopToken){window.suspendAudio();await desktopRPC('native-stop');await desktopRPC('desktop-exit')}else render()}
-
- });
-
- if(new URLSearchParams(location.search).has('tagtest'))window.tagTest={get ui(){return tagUI},get snapshot(){return snapshot},get engine(){return engine}};
-
-}
-
-async function showTagDuel(s,cues,owner=tagUI){
-
- if(!owner||tagUI!==owner||owner.view?.phase!=='duel')return;if(!owner.isCollector&&(s.tag.responseNumber||0)===0){const key=JSON.stringify([owner.view.run.round,owner.view.opponents]);if(owner.introKey!==key){owner.introKey=key;await playEncounterReveal({content,players:owner.view.characters,opponents:owner.view.opponents.filter(i=>i!=null),lp:s.lp,sound:duelSound,tickSound:slotTickSound,stopTick:()=>slotTick.pause(),active:()=>tagUI===owner&&owner.alive})}}const resumedPresentation=!engine?.tagFacade&&(s.tag.responseNumber||0)>0&&!cues.length;snapshot=s;screen='duel';track(screenMusic());
-
- if(!engine?.tagFacade){engine=Object.create(MobileDuel.prototype);engine.tagFacade=true;engine.cards=new Map([...content.cards,...content.tokenCards].map(c=>[c.id,c]));const facade=engine,data=await fetch('engine-data.json').then(r=>r.json());if(tagUI!==owner||engine!==facade||owner.view?.phase!=='duel')return;engine.data=data;for(const c of Object.values(engine.data))c.race=BigInt(c.race);engine.query=(p,loc)=>{const side=snapshot.players[p];return loc===L.EXTRA?(side.extraCards||[]):side[{[L.HAND]:'hand',[L.MZONE]:'monsters',[L.SZONE]:'spells',[L.GRAVE]:'grave',[L.REMOVED]:'banished'}[loc]]||[]};engine.core={duelQueryCount:(_,p,loc)=>loc===L.DECK?snapshot.players[p].deck:loc===L.EXTRA?snapshot.players[p].extra:engine.query(p,loc).length};engine.destroy=()=>{}}
-
- engine.presentationDuel=s.tag.presentationDuel;Object.assign(engine,s.tag.ui,{pending:s.pending,visuals:cues,turn:s.turn,phase:s.phase,player:s.player,lp:s.lp});renderDuel();
-
- if(resumedPresentation)await updateCoinMilestones(true);await playDuelCues(s.player===0);if(tagUI!==owner||owner.view?.phase!=='duel')return;renderDuel();if(s.finished&&!engine.polishFinished){engine.polishFinished=true;await duelFinish(s.finished.player,s.finished.reason)}tagConnectionBanner();scheduleAI();
-
-}
-
-function tagConnectionBanner(){
-
- document.querySelector('.tag-duel-banner')?.remove();document.querySelector('.tag-duel-paused')?.remove();
-
-}
-
-
 
 let cpuViewer=null;
 

@@ -10,24 +10,8 @@
   "durable_objects": {
     "bindings": [
       {
-        "name": "ROOMS",
-        "class_name": "RoomRegistry"
-      },
-      {
-        "name": "RELAY",
-        "class_name": "GameRelay"
-      },
-      {
-        "name": "COLLECTOR",
-        "class_name": "CollectorRegistry"
-      },
-      {
         "name": "PROGRESS",
         "class_name": "ProgressRegistry"
-      },
-      {
-        "name": "DRAFT",
-        "class_name": "DraftRegistry"
       },
       {
         "name": "BACKUP",
@@ -70,6 +54,15 @@
       "tag": "v6",
       "new_sqlite_classes": [
         "BackupRegistry"
+      ]
+    },
+    {
+      "tag": "v7",
+      "deleted_classes": [
+        "RoomRegistry",
+        "GameRelay",
+        "CollectorRegistry",
+        "DraftRegistry"
       ]
     }
   ]

@@ -1,13 +1,18 @@
-# Shadow Run online rooms
+# Shadow Run cloud worker
 
-The public endpoint is configured in `android/web/multiplayer-config.json`. Players select a character, host or join with a five-character code, and can reconnect with that code on the same device. No player account, URL input, port forwarding, or TURN subscription is needed.
+The game no longer has any multiplayer modes (Tag Duels, Draft Duels and Ultimate Collector were removed).
+This Cloudflare Worker now only provides two optional, non-multiplayer services:
 
-The host device runs the authoritative duel. WebRTC attempts a direct connection first. If it cannot connect within eight seconds, both clients switch to an authenticated TLS WebSocket relay on this Worker. Relay traffic is forwarded transiently, never stored. Either Android or the webapp can host, including when the webapp is open in a desktop browser. The native Windows desktop edition is deprecated and no longer supported. Existing TURN secrets remain optional, not required.
+* `/backup/*` – encrypted-by-the-client device backups (`backup.mjs`)
+* `/progress/*` – cross-device progress sync (`progress.mjs`)
 
-## Owner deployment
+The public endpoint is configured in `android/web/multiplayer-config.json` (the file name is historical; it is
+only read by `device-sync.js` and `device-backup.js`).
 
-Deploy `wrangler.jsonc` using Wrangler on Workers Free. `/health` reports `relayConfigured: true` and `relayTransport: websocket`. The two SQLite Durable Object classes implement room discovery and per-room relay. Hibernation keeps idle relay connections out of active compute billing. Free account limits still apply; no paid subscription is enabled automatically.
+## Deploying
 
-Seat tokens authenticate reconnects and relay sockets; knowing a room code cannot steal an occupied seat. Rooms expire after one day of inactivity. Creation/join rate limits, room capacity, signaling queues and packet sizes are bounded. Worker observability is disabled. No user passwords or Cloudflare keys are shipped with the game.
+Run `wrangler deploy` from this folder. Migration `v7` **deletes** the retired Durable Object classes
+(`RoomRegistry`, `GameRelay`, `CollectorRegistry`, `DraftRegistry`) together with any rooms, Collector decks and
+draft data stored in them. Back up anything you want to keep before the first deploy.
 
-Checks: `node --test test.mjs`; `android/test_tag_peer.cjs --endpoint=<public HTTPS URL>` with and without `--relay`; full `android/test_tag_integration.cjs` using the configured endpoint. Tests use isolated saves.
+Tests: `npm test` (progress and backup only).

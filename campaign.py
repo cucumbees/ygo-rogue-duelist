@@ -60,7 +60,7 @@ def deck(run):
     return [run['pool'][i] for i in run['selected']]
 
 def is_extra(cid):
-    return bool(BY_ID[cid]['data']['type'] & 64)
+    return bool(BY_ID[cid]['data']['type'] & 0x4802040)  # Fusion, Synchro, Xyz, Link
 
 def card_identity(cid):
     c=BY_ID[cid]

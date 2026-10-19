@@ -4,7 +4,6 @@ from copy import deepcopy
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 import campaign as g,storage,content,challenge_levels as cl,secret_challenge,approved_relics as ar
-from tag_campaign import TagCampaign
 if True:
  td=ROOT/'temp/update32-tests';td.mkdir(parents=True,exist_ok=True)
  storage.ROOT=Path(td)/'saves';g.RUNTIME=Path(td)/'runtime';g.RUNTIME.mkdir(exist_ok=True)
@@ -34,20 +33,7 @@ if True:
     record=content.opponent_record(rd,opponent,loop)
     assert record['tier']==(4 if loop else rd//3+1)
     assert set(record['main']+record['extra'])<=set(g.BY_ID)
- s=TagCampaign([0,1],[p,p],seed=23,lobby=True);s.phase='shop';s.shop_seat=0;s.shared['gold']=100
- s.sync();s.players[0]['stage']='shop';s.players[0]['opponent']=2
- with s.scope(0):g.restock(s.players[0],random.Random(1))
- s.shared['shop']=deepcopy(s.players[0]['shop']);s.sync()
- s.apply(0,'shop-reroll',None);assert s.shared['gold']==90 and s.shared['shop_rerolls']==1 and s.shop_seat==0 and s.phase=='shop'
- try:s.apply(1,'shop-reroll',None);raise AssertionError('wrong seat allowed')
- except ValueError:pass
- assert all(r['shop_rerolls']==1 for r in s.players)
- p=storage.profile();p['relicless_unlocked']=True
- guest=deepcopy(p);guest.pop('relicless_unlocked',None)
- from unittest.mock import patch
- with patch.dict(content.CHARACTERS[1],starting_relic='ankh'):
-  tag=TagCampaign([0,1],[p,guest],seed=22,lobby=True,level=-1);assert tag.shared['lp']==8000 and not tag.shared['artifacts']
- print('PASS reroll prices/persistence/authorization, secret backup/champion/unlock, relicless shops/all characters, 594 tier mappings, shared tag reroll')
+ print('PASS reroll prices/persistence/authorization, secret backup/champion/unlock, relicless shops/all characters, 594 tier mappings')
 
 
 

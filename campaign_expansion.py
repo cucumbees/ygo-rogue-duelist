@@ -47,6 +47,11 @@ def shop_relic_eligible(run,key):
 def install(g):
  g.CARDS=json.loads((g.ROOT/'data/era-cards.json').read_text(encoding='utf8'))+custom_cards.CARDS
  g.BY_ID={c['id']:c for c in g.CARDS};g.BY_NAME={c['name']:c for c in g.CARDS}
+ modern_path=g.ROOT/'data/modern-cards.json'
+ g.MODERN_CARDS=json.loads(modern_path.read_text(encoding='utf8')) if modern_path.exists() else []
+ # Modern cards are reachable only through the Modern Collection pack: resolvable by id/name, but never in g.CARDS,
+ # so random reward/stamp pools and collector goals keep using the original pool.
+ for c in g.MODERN_CARDS:g.BY_ID.setdefault(c['id'],c);g.BY_NAME.setdefault(c['name'],c)
  aliases={int(k):v for k,v in json.loads((g.ROOT/'data/card-aliases.json').read_text()).items()}
  g.CHARACTERS=CHARACTERS;g.ARTIFACTS=ARTIFACTS;g.OPPONENTS=['Act I']*3+['Act II']*3+['Act III']*3
  def ensure_bounty(run,rng=random,force=False):

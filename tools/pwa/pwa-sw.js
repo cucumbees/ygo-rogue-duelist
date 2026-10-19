@@ -47,6 +47,7 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
  await self.clients.claim();
 })()));
 self.addEventListener('fetch',event=>{
+ const art=new URL(event.request.url);if(event.request.method==='GET'&&art.hostname==='images.ygoprodeck.com'&&/^\/images\/cards\/\d+\.jpg$/.test(art.pathname)){event.respondWith(caches.open('ygo-modern-art-v1').then(cache=>cache.match(art.href)).then(hit=>hit||fetch(event.request)));return}
  const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==root.origin)return;
  if(event.request.mode==='navigate'&&url.pathname===root.pathname)url.pathname+='index.html';
  url.search='';url.hash='';if(!allowed.has(url.href))return;

@@ -61,6 +61,7 @@ self.addEventListener('message',event=>{
  if(event.data?.type==='DOWNLOAD_OFFLINE'){offlineJob??=downloadOffline().finally(()=>offlineJob=null);event.waitUntil(offlineJob.catch(()=>{}));}
 });
 self.addEventListener('fetch',event=>{
+ const art=new URL(event.request.url);if(event.request.method==='GET'&&art.hostname==='images.ygoprodeck.com'&&/^\/images\/cards\/\d+\.jpg$/.test(art.pathname)){event.respondWith(caches.open('ygo-modern-art-v1').then(cache=>cache.match(art.href)).then(hit=>hit||fetch(event.request)));return}
  const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==root.origin||!url.pathname.startsWith(root.pathname))return;
  const entry=ARTWORK[decodeURIComponent(url.pathname.slice(root.pathname.length))];
  if(entry){event.respondWith((async()=>{try{const [name,start,length]=entry,blob=await getBundle(name);if(start+length>blob.size)throw Error('Invalid artwork index');return new Response(blob.slice(start,start+length,'image/jpeg'),{headers:{'Content-Type':'image/jpeg','Content-Length':String(length)}});}catch(error){return new Response(String(error),{status:503});}})());return;}

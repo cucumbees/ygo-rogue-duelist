@@ -20,10 +20,5 @@ r.pop('cursed_offer');g.routes(r,random.Random(4));r['stage']='draft';a,b=r['rou
 r['round']=2;g.routes(r,random.Random(6));assert bs.price(r)==0;assert bs.reroll(g,r,random.Random(7))==0;assert bs.price(r)==30
 r['round']=5;g.routes(r,random.Random(8));assert bs.price(r)==0
 r['challenge_level']=-1;assert g.reroll_price(r)>0 and bs.price(r)>0
-from tag_campaign import TagCampaign
-p=storage.profile();t=TagCampaign([0,1],[p,p],seed=7);t.shared['artifacts']+=['dice_jar','cyber_jar'];t.shared['gold']=1000;t.sync();t.phase='draft'
-x=t.players[0]['routes'][0];assert t.apply(0,'reveal-opponent',x)==0;assert bs.reveal_price(t.players[1])==15
-t.shared['round']=2;t.sync();t.routes();t.sync();assert t.apply(0,'boss-reroll',None)==0;assert bs.price(t.shared)==30
-Path('temp/jar-collection-data.json').write_text(json.dumps({'artifacts':content.ARTIFACTS,'retiredArtifacts':list(content.RETIRED_ARTIFACTS)}),encoding='utf8')
-print('PASS Jar prices, free-use persistence/reset, fresh personal pack, two cursed rerolls, reveals, boss rerolls, disabled relics, shared tag usage')
+print('PASS Jar prices, free-use persistence/reset, fresh personal pack, two cursed rerolls, reveals, boss rerolls, disabled relics')
 

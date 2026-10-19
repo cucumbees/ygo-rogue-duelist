@@ -4,6 +4,9 @@ from pathlib import Path
 PACKS=json.loads((Path(__file__).parent/'data/packs.json').read_text(encoding='utf8'))
 import custom_cards
 custom_cards.install_packs(PACKS)
+# One extra booster holding every post-2005 card that has a working script (tools/build_modern_pack.py).
+_MODERN_PACK=Path(__file__).parent/'data/modern-pack.json'
+if _MODERN_PACK.exists():PACKS.append(json.loads(_MODERN_PACK.read_text(encoding='utf8')))
 FIXED_OPPONENTS=json.loads((Path(__file__).parent/'data/fixed-opponents.json').read_text(encoding='utf8'))['opponents']
 GAME_DECKS={int(k):v for k,v in FIXED_OPPONENTS.items()}
 PACK_BY_ID={p['id']:p for p in PACKS}
